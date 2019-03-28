@@ -1,0 +1,247 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+	<head>
+		<meta name="charset" content="text/html; charset=utf-8">
+		<title>Графический редактор фракталов</title>
+		<script src="js/JQuery.js"></script>
+		<script src="js/Konva.js"></script>
+		<style>
+			html, body {
+				margin: 0;
+				height: 100%;
+				width: 100%;
+			}
+			
+			body { background: #eee; }
+			
+			#wrap {
+				background: white;
+				margin: 5px;
+				border: 1px solid black;
+				display: inline-block;
+			}
+			
+			#settings {
+				display: inline-block;
+				vertical-align: top;
+				margin-top: 10px;
+			}
+			
+			input {
+				margin: 3px 5px 0 0;
+			}
+			
+			input[type="number"] {
+				width: 61px;
+			}
+			
+			#draw {
+			    margin: 5px 25%;
+			}
+			
+			#message {
+				visibility: hidden;
+			}
+			
+			
+		</style>
+	</head>
+	<body>
+		<div id="container">
+			<div id="wrap"></div>
+			<div id="settings">
+				<div class="inline" style="margin-bottom: 10px;"><input id="import" type="button" value="Импорт" /><input id="export" style="margin-left: 3px;" type="button" value="Экспорт" /></div>
+				<input id="divider" type="number" value="2" min="1"/><label for="divider">Делитель</label><br />
+				<input id="dotCount" type="number" value="100000" min="1000" max="900000" /><label for="dotCount">Количество точек</label><br />
+				<input id="zoom" type="checkbox" /><label for="zoom">Растягивать фрактал</label><br />
+				<input id="rounding" type="number" min="1" max="50" value="15" /><label for="rounding">Размер направляющей сетки</label><br />
+				<input id="draw" type="button" value="Нарисовать" /><br />
+				<p id="message"></p>
+			</div>
+		</div>
+		<script>
+			let RC = 15;
+			
+			class Canvas {
+				constructor(id) {
+					this.stage = new Konva.Stage({
+						container: id,
+						width: 600,
+						height: 600
+					});
+					this.stage.on("dblclick", function(e) {
+						canv.addAttr(Math.round(e.evt.layerX/RC)*RC, Math.round(e.evt.layerY/RC)*RC, "apex");
+					});
+					this.height = this.width = 600;
+					this.layer = new Konva.Layer();
+					this.ctx = this.layer.canvas.context._context;
+					this.stage.add(this.layer);
+					this.attractors = []; 
+					this.addAttr(300, 300, "start");
+				}
+				
+				clear() {
+					this.layer.destroyChildren();
+					this.layer.clear();
+					this.startPoint = null;
+					this.attractors = [];
+					this.addAttr(300, 300, "start");
+				}
+				
+				addAttr(x, y, type) {
+					switch(type) {
+						case "start": {
+							if (this.startPoint) return;
+							this.startPoint = new Konva.Circle({
+								x,
+								y,
+								radius: 6,
+								fill: 'green',
+								draggable: true
+							});
+							this.layer.add(this.startPoint);
+							break;
+						}
+						case "apex": {
+							let circle = new Konva.Circle({
+								x,
+								y,
+								radius: 6,
+								fill: 'blue',
+								draggable: true,
+								dragBoundFunc: pos => {
+									let X = pos.x < 0 ? 0 : (pos.x > this.width ? this.width : pos.x);
+									let Y = pos.y < 0 ? 0 : (pos.y > this.height ? this.height : pos.y);
+									return {
+										x: Math.round(X/RC)*RC,
+										y: Math.round(Y/RC)*RC
+									};
+								}
+							});
+							circle.on('dblclick', function() {
+								canv.attractors.splice(canv.attractors.indexOf(this), 1);
+								this.destroy();
+								canv.layer.drawScene();
+								canv.layer.drawHit();
+							});
+							this.attractors.push(circle);
+							this.layer.add(circle);
+							break;
+						}
+					}
+					this.layer.drawScene();
+					this.layer.drawHit();
+				}
+				
+				parseCoords(coords) {
+					this.clear();
+					let asked = false;
+					coords = coords.replace(/\[|\]|\s/g, "");
+					coords = coords.split(",");
+					for (let i = 0; i < coords.length; i++) {
+						coords[i] = coords[i].split(";");
+						if (!asked && (coords[i][0] > this.width || coords[i][0] < 0 || coords[i][1] > this.height || coords[i][1] < 0)) {
+							if (!confirm("Введены координаты вершин, лежащих за пределами холста. Вы не сможете переместить или удалить их, не создавая новый холст. Продолжить?")) {
+								this.clear();
+								return;
+							}
+							asked = true;
+						}
+						this.addAttr(coords[i][0], coords[i][1], "apex");
+					}
+				}
+				
+				switchPoints(status) {
+					switch(status) {
+						case "hide": {
+							for (let A of this.attractors) A.hide();
+							this.startPoint.hide();
+							break
+						}
+						case "show": {
+							for (let A of this.attractors) A.show();
+							this.startPoint.show();
+							break
+						}
+					}
+					this.layer.drawScene();
+					this.layer.drawHit();
+				}
+			}
+			
+			const canv = new Canvas("wrap");
+			
+			$(document).on('keyup', e => {
+				switch(e.key.toLowerCase()) {
+					case "c":
+					case "с": {
+						canv.switchPoints("show");
+						break;
+					}
+					case "т":
+					case "n": {
+						canv.clear();
+						break;
+					}
+				}
+			});
+			
+			$("#rounding").on("change", function(e) {
+				if (+this.value > this.max) this.value = this.max;
+				else if (+this.value < this.min) this.value = this.min;
+				RC = +this.value;
+			});
+			
+			$("#draw").on("click", e => {
+				$("#message").css("visibility", "hidden");
+				if (canv.attractors.length < 2) {
+					$("#message").text("Вы должны указать минимум две вершины.");
+					$("#message").css("visibility", "visible");
+				}
+				
+				if (+$("#dotCount").val() > ($("#dotCount")[0]).max) $("#dotCount").val(($("#dotCount")[0]).max);
+				else if (+$("#dotCount").val() < ($("#dotCount")[0]).min) $("#dotCount").val(($("#dotCount")[0]).min);
+				let dotCount = +$("#dotCount").val();
+
+				if (+$("#divider").val() < ($("#divider")[0]).min) $("#divider").val(($("#dotCount")[0]).min);
+				let divider = +$("#divider").val();
+				
+				let attractors = [];
+				for (let A of canv.attractors) {
+					let zoom = ($("#zoom")[0]).checked;
+					let multipler = 1;
+					if (zoom) multipler = (divider-1 == 0 ? 1 : divider-1);
+					let x = A.attrs.x*multipler;
+					let y = A.attrs.y*multipler;
+					attractors.push([x, y]);
+				}
+				let coord = [canv.startPoint.attrs.x, canv.startPoint.attrs.y];
+				
+				canv.switchPoints("hide");
+				let canvasData = canv.ctx.getImageData(0, 0, canv.width, canv.height);
+				for (let i = 0; i < dotCount; i++) {
+					//Рисуем точку
+					const pixel = (coord[0] + coord[1] * canv.width) * 4; //4 т.к. один пиксель занимает 4 элемента в массиве
+					canvasData.data[pixel] = 255; //R
+					canvasData.data[pixel + 3] = 255; //A
+					//Обновляем координаты, приближаясь к одной из вершин
+					const index = Math.floor(Math.random() * attractors.length);
+					coord[0] = Math.round((coord[0] + attractors[index][0]) / divider);
+					coord[1] = Math.round((coord[1] + attractors[index][1]) / divider);
+				}
+				canv.ctx.putImageData(canvasData, 0, 0);
+			});
+		
+			$("#import").on("click", e => {
+				let answer = prompt("Вставьте координаты в формате x1;y1, x2;y2, ...");
+				if (answer) canv.parseCoords(answer);
+			});
+			
+			$("#export").on("click", e => {
+				let res = [];
+				for (A of canv.attractors) res.push(A.x() + ";" + A.y());
+				alert(res.join(", "));
+			});
+		</script>
+	</body>
+</html>

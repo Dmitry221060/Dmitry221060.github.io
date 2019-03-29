@@ -12,7 +12,11 @@
 				width: 100%;
 			}
 			
-			body { background: #eee; }
+			body { 
+				background: #eee; 
+				user-select: none;
+				cursor: default;
+			}
 			
 			#wrap {
 				background: white;
@@ -36,7 +40,7 @@
 			}
 			
 			#draw {
-			    margin: 5px 25%;
+			    margin: 5px 70px;
 			}
 			
 			#message {
@@ -50,13 +54,22 @@
 		<div id="container">
 			<div id="wrap"></div>
 			<div id="settings">
-				<div class="inline" style="margin-bottom: 10px;"><input id="import" type="button" value="Импорт" /><input id="export" style="margin-left: 3px;" type="button" value="Экспорт" /></div>
+				<div class="inline" style="margin-bottom: 10px;">
+					<input id="import" type="button" value="Импорт" />
+					<input id="export" type="button" value="Экспорт" />
+					<a href="#" id="download" download="fractal.png"><input id="toImg"  type="button" value="В изображение" /></a>
+				</div>
 				<input id="divider" type="number" value="2" min="1"/><label for="divider">Делитель</label><br />
 				<input id="dotCount" type="number" value="100000" min="1000" max="900000" /><label for="dotCount">Количество точек</label><br />
 				<input id="zoom" type="checkbox" /><label for="zoom">Растягивать фрактал</label><br />
 				<input id="rounding" type="number" min="1" max="50" value="15" /><label for="rounding">Размер направляющей сетки</label><br />
 				<input id="draw" type="button" value="Нарисовать" /><br />
 				<p id="message"></p>
+				<p style="white-space: pre-line;">A или двойной клик по холсту - добавить вершину
+				D или двойной клик по вершине - удалить вершину
+				C - стереть фрактал с холста(Возврат к расстановке вершин)
+				N - создать новый холст(Возврат к изначальной позиции)
+				Стрелки - переместить последнюю активную вершину</p>
 			</div>
 		</div>
 		<script>
@@ -69,14 +82,16 @@
 						width: 600,
 						height: 600
 					});
-					this.stage.on("dblclick", function(e) {
-						canv.addAttr(Math.round(e.evt.layerX/RC)*RC, Math.round(e.evt.layerY/RC)*RC, "apex");
+					this.stage.on("dblclick", e => {
+						this.addAttr(Math.round(e.evt.layerX/RC)*RC, Math.round(e.evt.layerY/RC)*RC, "apex");
+						this.lastTouched = this.attractors[this.attractors.length-1];
 					});
 					this.height = this.width = 600;
 					this.layer = new Konva.Layer();
 					this.ctx = this.layer.canvas.context._context;
 					this.stage.add(this.layer);
 					this.attractors = []; 
+					this.lastTouched = null;
 					this.addAttr(300, 300, "start");
 				}
 				
@@ -84,6 +99,7 @@
 					this.layer.destroyChildren();
 					this.layer.clear();
 					this.startPoint = null;
+					this.lastTouched = null;
 					this.attractors = [];
 					this.addAttr(300, 300, "start");
 				}
@@ -103,34 +119,35 @@
 							break;
 						}
 						case "apex": {
+							let cnv = this;
 							let circle = new Konva.Circle({
 								x,
 								y,
 								radius: 6,
 								fill: 'blue',
 								draggable: true,
-								dragBoundFunc: pos => {
-									let X = pos.x < 0 ? 0 : (pos.x > this.width ? this.width : pos.x);
-									let Y = pos.y < 0 ? 0 : (pos.y > this.height ? this.height : pos.y);
+								dragBoundFunc: function(pos) {
+									cnv.lastTouched = this;
+									let X = pos.x < 0 ? 0 : (pos.x > cnv.width ? cnv.width : pos.x);
+									let Y = pos.y < 0 ? 0 : (pos.y > cnv.height ? cnv.height : pos.y);
 									return {
 										x: Math.round(X/RC)*RC,
 										y: Math.round(Y/RC)*RC
 									};
 								}
 							});
+							circle.on('click', function() { cnv.lastTouched = this; });
 							circle.on('dblclick', function() {
-								canv.attractors.splice(canv.attractors.indexOf(this), 1);
+								cnv.attractors.splice(cnv.attractors.indexOf(this), 1);
 								this.destroy();
-								canv.layer.drawScene();
-								canv.layer.drawHit();
+								cnv.layer.draw();
 							});
 							this.attractors.push(circle);
 							this.layer.add(circle);
 							break;
 						}
 					}
-					this.layer.drawScene();
-					this.layer.drawHit();
+					this.layer.draw();
 				}
 				
 				parseCoords(coords) {
@@ -164,23 +181,95 @@
 							break
 						}
 					}
-					this.layer.drawScene();
-					this.layer.drawHit();
+					this.layer.draw();
 				}
 			}
 			
 			const canv = new Canvas("wrap");
 			
-			$(document).on('keyup', e => {
+			$(document).on('keydown', e => {
 				switch(e.key.toLowerCase()) {
 					case "c":
-					case "с": {
+					case "с": { //Вернуться к вершинам
 						canv.switchPoints("show");
 						break;
 					}
 					case "т":
-					case "n": {
+					case "n": { //Удалить все вершины
 						canv.clear();
+						break;
+					}
+					case "ф":
+					case "a": { //Добавить вершину
+						canv.switchPoints("show");
+						canv.addAttr(Math.round(300/RC)*RC, Math.round(300/RC)*RC, "apex");
+						canv.lastTouched = canv.attractors[canv.attractors.length-1];
+						break;
+					}
+					case "в":
+					case "d": { //Удалить вершину
+						if (e.ctrlKey) { //Если зажат контрл - удалить последнюю добавленную вершину
+							e.preventDefault();
+							let deleted = canv.attractors.pop();
+							if (deleted == canv.lastTouched) canv.lastTouched = null;
+							deleted.destroy();
+						} else { //Если не зажат - удалить последнюю тронутую вершину
+							if (!canv.lastTouched) return;
+							canv.attractors.splice(canv.attractors.indexOf(canv.lastTouched), 1);
+							canv.lastTouched.destroy();
+							canv.lastTouched = null;
+						}
+						canv.layer.draw();
+						break;
+					}
+					case "=": { //Увеличить делитель и построить фрактал
+						($("#divider")[0]).value++;
+						$("#draw").click();
+						break;
+					}
+					case "-": { //Уменьшить делитель и построить фрактал
+						($("#divider")[0]).value--;
+						$("#draw").click();
+						break;
+					}
+					case "enter": { //Построить фрактал
+						$("#draw").click();
+						break;
+					}
+					case "arrowup": 
+					case "arrowdown":
+					case "arrowleft":
+					case "arrowright": { //Переместить активную вершину
+						if (e.target.nodeName.toLowerCase() == 'input') return;
+						canv.switchPoints("show");
+						let dot = canv.lastTouched;
+						if (!dot) return;
+						let newX = dot.x(); 
+						let newY = dot.y();
+						let step = e.shiftKey ? 3 : (e.ctrlKey ? 6 : 1);
+						switch(e.key.toLowerCase()) {
+							case "arrowup": {
+								newY = newY-RC*step < 0 ? 0 : newY-RC*step;
+								break;
+							}
+							case "arrowdown": {
+								newY = newY+RC*step > canv.height ? canv.height : newY+RC*step;
+								break;
+							}
+							case "arrowleft": {
+								newX = newX-RC*step < 0 ? 0 : newX-RC*step;
+								break;
+							}
+							case "arrowright": {
+								newX = newX+RC*step > canv.width ? canv.width : newX+RC*step;
+								break;
+							}
+						}
+						dot.position({
+							x: Math.round(newX / RC) * RC, 
+							y: Math.round(newY / RC) * RC
+						});
+						canv.layer.draw();
 						break;
 					}
 				}
@@ -197,13 +286,14 @@
 				if (canv.attractors.length < 2) {
 					$("#message").text("Вы должны указать минимум две вершины.");
 					$("#message").css("visibility", "visible");
+					return;
 				}
 				
 				if (+$("#dotCount").val() > ($("#dotCount")[0]).max) $("#dotCount").val(($("#dotCount")[0]).max);
 				else if (+$("#dotCount").val() < ($("#dotCount")[0]).min) $("#dotCount").val(($("#dotCount")[0]).min);
 				let dotCount = +$("#dotCount").val();
 
-				if (+$("#divider").val() < ($("#divider")[0]).min) $("#divider").val(($("#dotCount")[0]).min);
+				if (+$("#divider").val() < ($("#divider")[0]).min) $("#divider").val(($("#divider")[0]).min);
 				let divider = +$("#divider").val();
 				
 				let attractors = [];
@@ -241,6 +331,10 @@
 				let res = [];
 				for (A of canv.attractors) res.push(A.x() + ";" + A.y());
 				alert(res.join(", "));
+			});
+			
+			$("#toImg").on("click", e => {
+				($("#download")[0]).href = canv.ctx.canvas.toDataURL();
 			});
 		</script>
 	</body>

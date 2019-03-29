@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 	<head>
 		<meta name="charset" content="text/html; charset=utf-8">
@@ -57,11 +57,13 @@
 				<div class="inline" style="margin-bottom: 10px;">
 					<input id="import" type="button" value="Импорт" />
 					<input id="export" type="button" value="Экспорт" />
-					<a href="#" id="download" download="fractal.png"><input id="toImg"  type="button" value="В изображение" /></a>
+					<a href="#" id="download" download="fractal.png">
+						<input id="toImg" type="button" value="В изображение" />
+					</a>
 				</div>
 				<input id="divider" type="number" value="2" min="1"/><label for="divider">Делитель</label><br />
 				<input id="dotCount" type="number" value="100000" min="1000" max="900000" /><label for="dotCount">Количество точек</label><br />
-				<input id="zoom" type="checkbox" /><label for="zoom">Растягивать фрактал</label><br />
+				<input id="zoom" type="checkbox" checked /><label for="zoom">Растягивать фрактал</label><br />
 				<input id="rounding" type="number" min="1" max="50" value="15" /><label for="rounding">Размер направляющей сетки</label><br />
 				<input id="draw" type="button" value="Нарисовать" /><br />
 				<p id="message"></p>
@@ -240,7 +242,7 @@
 					case "arrowdown":
 					case "arrowleft":
 					case "arrowright": { //Переместить активную вершину
-						if (e.target.nodeName.toLowerCase() == 'input') return;
+						if (e.target.nodeName.toLowerCase() == 'input' && (e.target.type == "number" || e.target.type == "text")) return;
 						canv.switchPoints("show");
 						let dot = canv.lastTouched;
 						if (!dot) return;

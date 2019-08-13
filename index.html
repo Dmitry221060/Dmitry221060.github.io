@@ -222,6 +222,7 @@
                         canv.layer.draw();
                         break;
                     }
+                    case "+":
                     case "=": { //Увеличить делитель и построить фрактал
                         ($("#divider")[0]).value++;
                         $("#draw").click();
@@ -297,10 +298,10 @@
                 let divider = +$("#divider").val();
                 
                 let attractors = [];
+                let zoom = ($("#zoom")[0]).checked;
+                let multipler = 1;
+                if (zoom) multipler = (divider-1 == 0 ? 1 : divider-1);
                 for (let A of canv.attractors) {
-                    let zoom = ($("#zoom")[0]).checked;
-                    let multipler = 1;
-                    if (zoom) multipler = (divider-1 == 0 ? 1 : divider-1);
                     let x = A.attrs.x*multipler;
                     let y = A.attrs.y*multipler;
                     attractors.push([x, y]);
